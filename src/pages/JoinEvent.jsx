@@ -3,12 +3,12 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   limit,
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore'
 import EventLocationMap from '../components/EventLocationMap'
@@ -101,14 +101,15 @@ function JoinEvent() {
 
       const participantId = `${eventData.id}_${currentUser.uid}`
       const participantRef = doc(db, 'participants', participantId)
-      const participantSnapshot = await getDoc(participantRef)
 
       const participantIdentity = {
         userName: currentUser.displayName || null,
         userEmail: currentUser.email || null,
       }
 
-      if (!participantSnapshot.exists()) {
+      try {
+        await updateDoc(participantRef, participantIdentity)
+      } catch {
         await setDoc(participantRef, {
           id: participantId,
           eventId: eventData.id,
@@ -118,8 +119,6 @@ function JoinEvent() {
           returnTrip: null,
           createdAt: serverTimestamp(),
         })
-      } else {
-        await setDoc(participantRef, participantIdentity, { merge: true })
       }
 
       navigate('/dashboard', { replace: true })

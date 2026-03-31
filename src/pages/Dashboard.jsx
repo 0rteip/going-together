@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   collection,
   deleteDoc,
@@ -16,12 +16,20 @@ import { db } from '../firebase'
 function Dashboard() {
   const { currentUser } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [participantDataMap, setParticipantDataMap] = useState({})
   const [actionLoadingId, setActionLoadingId] = useState('')
   const [copiedInviteId, setCopiedInviteId] = useState('')
+  const [lastCreatedEventId, setLastCreatedEventId] = useState(location.state?.createdEventId || '')
+
+  useEffect(() => {
+    if (location.state?.createdEventId) {
+      setLastCreatedEventId(location.state.createdEventId)
+    }
+  }, [location.state])
 
   const deleteDocRefsInBatches = async (refs, batchSize = 400) => {
     for (let i = 0; i < refs.length; i += batchSize) {
@@ -206,6 +214,10 @@ function Dashboard() {
     }
   }
 
+  const lastCreatedEvent = lastCreatedEventId
+    ? events.find((eventItem) => eventItem.id === lastCreatedEventId)
+    : null
+
   return (
     <section className="mx-auto w-full max-w-4xl space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -222,6 +234,25 @@ function Dashboard() {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-semibold text-slate-900">Eventi a cui partecipi</h2>
+
+        {lastCreatedEvent ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+                Ultimo evento creato
+              </p>
+              <p className="text-sm font-semibold text-emerald-900">{lastCreatedEvent.name}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleCopyInviteLink(lastCreatedEvent)}
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100"
+            >
+              <span>{copiedInviteId === lastCreatedEvent.id ? 'Link copiato' : 'Copia link invito'}</span>
+            </button>
+          </div>
+        ) : null}
 
         {loading ? <p className="mt-4 text-sm text-slate-600">Caricamento eventi...</p> : null}
 

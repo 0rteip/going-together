@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { collection, doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import LeafletMapPicker from '../components/LeafletMapPicker'
 import { useAuth } from '../context/useAuth'
@@ -6,6 +7,7 @@ import { db } from '../firebase'
 
 function CreateEvent() {
   const { currentUser } = useAuth()
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     name: '',
     date: '',
@@ -14,28 +16,15 @@ function CreateEvent() {
   const [location, setLocation] = useState(null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [inviteLink, setInviteLink] = useState('')
-  const [copied, setCopied] = useState(false)
 
   const handleChange = (event) => {
     const { name, value } = event.target
     setFormData((previous) => ({ ...previous, [name]: value }))
   }
 
-  const handleCopyLink = async () => {
-    if (!inviteLink) {
-      return
-    }
-
-    await navigator.clipboard.writeText(inviteLink)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1800)
-  }
-
   const handleSubmit = async (event) => {
     event.preventDefault()
     setError('')
-    setInviteLink('')
 
     if (!formData.name.trim()) {
       setError('Inserisci il nome evento.')
@@ -68,12 +57,25 @@ function CreateEvent() {
         createdAt: serverTimestamp(),
       })
 
-      const appBaseUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
-      const generatedLink = new URL(`join/${inviteToken}`, appBaseUrl).toString()
-      setInviteLink(generatedLink)
+      const participantId = `${eventRef.id}_${currentUser.uid}`
+      const participantRef = doc(db, 'participants', participantId)
+      await setDoc(participantRef, {
+        id: participantId,
+        eventId: eventRef.id,
+        userId: currentUser.uid,
+        userName: currentUser.displayName || null,
+        userEmail: currentUser.email || null,
+        outwardTrip: null,
+        returnTrip: null,
+        createdAt: serverTimestamp(),
+      })
 
       setFormData({ name: '', date: '', time: '' })
       setLocation(null)
+      navigate('/dashboard', {
+        replace: true,
+        state: { createdEventId: eventRef.id },
+      })
     } catch {
       setError('Creazione evento non riuscita. Riprova.')
     } finally {
@@ -161,22 +163,6 @@ function CreateEvent() {
           {submitting ? 'Creazione in corso...' : 'Crea evento'}
         </button>
       </form>
-
-      {inviteLink ? (
-        <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <p className="text-sm font-medium text-emerald-900">Evento creato con successo.</p>
-          <p className="mt-2 break-all rounded-lg bg-white px-3 py-2 text-sm text-emerald-900">
-            {inviteLink}
-          </p>
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            className="mt-3 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-600"
-          >
-            {copied ? 'Link copiato' : 'Copia link invito'}
-          </button>
-        </div>
-      ) : null}
     </section>
   )
 }

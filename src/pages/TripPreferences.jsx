@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   setDoc,
@@ -26,6 +27,7 @@ function TripPreferences() {
 
   const [outwardTrip, setOutwardTrip] = useState(EMPTY_TRIP)
   const [returnTrip, setReturnTrip] = useState(EMPTY_TRIP)
+  const [eventDestination, setEventDestination] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -38,6 +40,21 @@ function TripPreferences() {
       try {
         setLoading(true)
         setError('')
+
+        const eventSnap = await getDoc(doc(db, 'events', eventId))
+        if (eventSnap.exists()) {
+          const eventData = eventSnap.data()
+          const destinationFromAddress = eventData?.location?.address
+          const lat = eventData?.location?.lat
+          const lng = eventData?.location?.lng
+          const destinationFromCoords =
+            typeof lat === 'number' && typeof lng === 'number'
+              ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+              : ''
+          setEventDestination(destinationFromAddress || destinationFromCoords || 'Destinazione evento')
+        } else {
+          setEventDestination('Destinazione evento')
+        }
 
         const participantQuery = query(
           collection(db, 'participants'),
@@ -285,8 +302,13 @@ function TripPreferences() {
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 p-8 shadow-sm">
         <h1 className="text-3xl font-bold text-slate-900">Preferenze di Viaggio</h1>
         <p className="mt-3 text-base text-slate-600">
-          Specifica come vuoi arrivare e partire via dall'evento.
+          Specifica come vuoi arrivare e tornare dall'evento.
         </p>
+
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Destinazione evento</p>
+          <p className="mt-1 text-sm font-medium text-emerald-900 break-words">{eventDestination || 'Caricamento destinazione...'}</p>
+        </div>
       </div>
 
       {/* Error Message */}

@@ -191,7 +191,8 @@ function Dashboard() {
       return
     }
 
-    const inviteLink = `${window.location.origin}/join/${eventItem.inviteToken}`
+    const appBaseUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
+    const inviteLink = new URL(`join/${eventItem.inviteToken}`, appBaseUrl).toString()
 
     try {
       await navigator.clipboard.writeText(inviteLink)

@@ -68,7 +68,8 @@ function CreateEvent() {
         createdAt: serverTimestamp(),
       })
 
-      const generatedLink = `${window.location.origin}/join/${inviteToken}`
+      const appBaseUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
+      const generatedLink = new URL(`join/${inviteToken}`, appBaseUrl).toString()
       setInviteLink(generatedLink)
 
       setFormData({ name: '', date: '', time: '' })

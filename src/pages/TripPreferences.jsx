@@ -44,14 +44,9 @@ function TripPreferences() {
         const eventSnap = await getDoc(doc(db, 'events', eventId))
         if (eventSnap.exists()) {
           const eventData = eventSnap.data()
+          const destinationFromVenueName = eventData?.venueName
           const destinationFromAddress = eventData?.location?.address
-          const lat = eventData?.location?.lat
-          const lng = eventData?.location?.lng
-          const destinationFromCoords =
-            typeof lat === 'number' && typeof lng === 'number'
-              ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-              : ''
-          setEventDestination(destinationFromAddress || destinationFromCoords || 'Destinazione evento')
+          setEventDestination(destinationFromVenueName || destinationFromAddress || 'Destinazione evento')
         } else {
           setEventDestination('Destinazione evento')
         }

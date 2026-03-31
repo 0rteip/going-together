@@ -68,6 +68,7 @@ service cloud.firestore {
           'id',
           'adminId',
           'name',
+          'venueName',
           'location',
           'date',
           'time',
@@ -79,6 +80,7 @@ service cloud.firestore {
         && data.name is string
         && data.name.size() > 0
         && data.name.size() <= 120
+        && (!('venueName' in data) || (data.venueName is string && data.venueName.size() > 0 && data.venueName.size() <= 120))
         && data.date is string
         && data.date.size() <= 20
         && data.time is string

@@ -10,6 +10,7 @@ function CreateEvent() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     name: '',
+    venueName: '',
     date: '',
     time: '',
   })
@@ -28,6 +29,11 @@ function CreateEvent() {
 
     if (!formData.name.trim()) {
       setError('Inserisci il nome evento.')
+      return
+    }
+
+    if (!formData.venueName.trim()) {
+      setError('Inserisci il nome del posto.')
       return
     }
 
@@ -50,6 +56,7 @@ function CreateEvent() {
         id: eventRef.id,
         adminId: currentUser.uid,
         name: formData.name.trim(),
+        venueName: formData.venueName.trim(),
         location,
         date: formData.date,
         time: formData.time,
@@ -70,7 +77,7 @@ function CreateEvent() {
         createdAt: serverTimestamp(),
       })
 
-      setFormData({ name: '', date: '', time: '' })
+      setFormData({ name: '', venueName: '', date: '', time: '' })
       setLocation(null)
       navigate('/dashboard', {
         replace: true,
@@ -104,6 +111,22 @@ function CreateEvent() {
             required
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
             placeholder="Matrimonio Giulia e Marco"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="venueName" className="mb-1 block text-sm font-medium text-slate-700">
+            Nome del posto
+          </label>
+          <input
+            id="venueName"
+            name="venueName"
+            type="text"
+            value={formData.venueName}
+            onChange={handleChange}
+            required
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+            placeholder="Es. Villa Rossi"
           />
         </div>
 

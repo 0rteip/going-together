@@ -1,43 +1,188 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Funzione helper per verificare se l'utente è loggato
+
+    // Auth helpers
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Verifica se l'utente autenticato è admin di uno specifico evento
+    function eventParticipantDocId(eventId) {
+      return eventId + '_' + request.auth.uid;
+    }
+
     function isEventAdmin(eventId) {
       return isAuthenticated()
         && exists(/databases/$(database)/documents/events/$(eventId))
         && get(/databases/$(database)/documents/events/$(eventId)).data.adminId == request.auth.uid;
     }
 
+    function isEventParticipant(eventId) {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/participants/$(eventParticipantDocId(eventId)));
+    }
+
+    function canAccessEventParticipants(eventId) {
+      return isEventAdmin(eventId) || isEventParticipant(eventId);
+    }
+
+    // Validation helpers
+    function isValidLocation(location) {
+      return location == null || (
+        location is map
+        && location.keys().hasOnly(['address', 'lat', 'lng'])
+        && ('lat' in location)
+        && ('lng' in location)
+        && location.lat is number
+        && location.lng is number
+        && location.lat >= -90
+        && location.lat <= 90
+        && location.lng >= -180
+        && location.lng <= 180
+        && (!('address' in location) || (location.address is string && location.address.size() <= 300))
+      );
+    }
+
+    function isValidTrip(trip) {
+      return trip == null || (
+        trip is map
+        && trip.keys().hasOnly([
+          'type',
+          'startLocation',
+          'endLocation',
+          'needsLastMileRide',
+          'passengers',
+          'waypoints'
+        ])
+        && (!('type' in trip) || trip.type is string)
+        && (!('startLocation' in trip) || isValidLocation(trip.startLocation))
+        && (!('endLocation' in trip) || isValidLocation(trip.endLocation))
+        && (!('needsLastMileRide' in trip) || trip.needsLastMileRide is bool)
+        && (!('passengers' in trip) || (trip.passengers is list && trip.passengers.size() <= 20))
+        && (!('waypoints' in trip) || (trip.waypoints is list && trip.waypoints.size() <= 20))
+      );
+    }
+
+    function isValidEventData(data, eventId) {
+      return data.keys().hasOnly([
+          'id',
+          'adminId',
+          'name',
+          'location',
+          'date',
+          'time',
+          'inviteToken',
+          'createdAt'
+        ])
+        && data.id == eventId
+        && data.adminId == request.auth.uid
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.date is string
+        && data.date.size() <= 20
+        && data.time is string
+        && data.time.size() <= 10
+        && data.inviteToken is string
+        && data.inviteToken.size() >= 8
+        && data.inviteToken.size() <= 64
+        && isValidLocation(data.location)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidParticipantData(data, participantId) {
+      return data.keys().hasOnly([
+          'id',
+          'eventId',
+          'userId',
+          'userName',
+          'userEmail',
+          'outwardTrip',
+          'returnTrip',
+          'createdAt'
+        ])
+        && data.id == participantId
+        && data.userId == request.auth.uid
+        && participantId == (data.eventId + '_' + request.auth.uid)
+        && (!('userName' in data) || data.userName == null || (data.userName is string && data.userName.size() <= 120))
+        && (!('userEmail' in data) || data.userEmail == null || (data.userEmail is string && data.userEmail.size() <= 254))
+        && isValidTrip(data.outwardTrip)
+        && isValidTrip(data.returnTrip)
+        && data.createdAt is timestamp;
+    }
+
     // Regole per la collezione "users"
     match /users/{userId} {
-      // Ognuno legge e scrive solo il proprio profilo
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      // Ognuno legge e gestisce solo il proprio profilo
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['id', 'name', 'email', 'createdAt'])
+        && request.resource.data.id == userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.createdAt is timestamp;
+
+      allow update: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['id', 'name', 'email', 'createdAt'])
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254;
+
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // Regole per la collezione "events"
     match /events/{eventId} {
-      // Tutti gli utenti loggati possono leggere gli eventi (serve per la mappa e l'iscrizione)
+      // Tutti gli utenti loggati possono leggere gli eventi
       allow read: if isAuthenticated();
-      // Solo gli utenti loggati possono creare eventi, e l'adminId deve coincidere col loro UID
-      allow create: if isAuthenticated() && request.resource.data.adminId == request.auth.uid;
-      // Solo il creatore (admin) dell'evento può modificarlo o eliminarlo
-      allow update, delete: if isAuthenticated() && resource.data.adminId == request.auth.uid;
+
+      allow create: if isAuthenticated() && isValidEventData(request.resource.data, eventId);
+
+      allow update: if isAuthenticated()
+        && resource.data.adminId == request.auth.uid
+        && isValidEventData(request.resource.data, eventId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.adminId == resource.data.adminId
+        && request.resource.data.inviteToken == resource.data.inviteToken
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isAuthenticated() && resource.data.adminId == request.auth.uid;
     }
 
     // Regole per la collezione "participants"
     match /participants/{participantId} {
-      // Tutti gli utenti loggati possono leggere i partecipanti (serve per vedere i pin sulla mappa)
-      allow read: if isAuthenticated();
-      // Gli utenti possono creare, modificare o cancellare solo il PROPRIO documento di partecipazione
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      // L'admin dell'evento può cancellare partecipazioni del proprio evento
+      // Lettura per il proprietario del documento o membri/admin dello stesso evento
+      allow read: if isAuthenticated()
+        && (
+          resource.data.userId == request.auth.uid
+          || canAccessEventParticipants(resource.data.eventId)
+        );
+
+      // Creazione/aggiornamento solo del proprio documento, con schema validato
+      allow create: if isAuthenticated() && isValidParticipantData(request.resource.data, participantId);
+
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && isValidParticipantData(request.resource.data, participantId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      // L'utente può eliminare solo il proprio documento
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // L'admin dell'evento può eliminare partecipazioni del proprio evento
       allow delete: if isEventAdmin(resource.data.eventId);
     }
   }

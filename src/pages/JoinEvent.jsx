@@ -25,11 +25,26 @@ function JoinEvent() {
   const [loadingEvent, setLoadingEvent] = useState(true)
   const [joining, setJoining] = useState(false)
   const [error, setError] = useState('')
+  const [requiresAuthToLoad, setRequiresAuthToLoad] = useState(false)
 
   useEffect(() => {
     const fetchEventByToken = async () => {
+      if (!token) {
+        setEventData(null)
+        setLoadingEvent(false)
+        return
+      }
+
+      if (!currentUser) {
+        setRequiresAuthToLoad(true)
+        setLoadingEvent(false)
+        setError('')
+        return
+      }
+
       try {
         setLoadingEvent(true)
+        setRequiresAuthToLoad(false)
         setError('')
 
         const eventsRef = collection(db, 'events')
@@ -44,14 +59,14 @@ function JoinEvent() {
         const firstDoc = snapshot.docs[0]
         setEventData({ id: firstDoc.id, ...firstDoc.data() })
       } catch {
-        setError('Impossibile caricare l evento. Riprova.')
+        setError('Impossibile caricare l evento. Riprova dopo il login.')
       } finally {
         setLoadingEvent(false)
       }
     }
 
     fetchEventByToken()
-  }, [token])
+  }, [token, currentUser])
 
   const formattedDate = useMemo(() => {
     if (!eventData?.date) {
@@ -124,6 +139,41 @@ function JoinEvent() {
   }
 
   if (!eventData) {
+    if (requiresAuthToLoad) {
+      return (
+        <section className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <h1 className="text-2xl font-semibold text-slate-900">Invito evento</h1>
+          <p className="mt-2 text-slate-600">Accedi per visualizzare i dettagli e partecipare all evento.</p>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() =>
+                navigate('/login', {
+                  state: { from: { pathname: location.pathname } },
+                })
+              }
+              className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
+            >
+              Accedi
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate('/register', {
+                  state: { from: { pathname: location.pathname } },
+                })
+              }
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            >
+              Registrati
+            </button>
+          </div>
+        </section>
+      )
+    }
+
     return (
       <section className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-semibold text-slate-900">Invito non valido</h1>
